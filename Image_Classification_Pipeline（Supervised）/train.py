@@ -1,7 +1,6 @@
 import argparse
-import sys
 import os
-import random
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,24 +11,24 @@ from torch import nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from dataset import HandDataset, HandTestDataset
-from model import DNNNet, CNNNet, LeNet, AlexNet, MT_CNN
+from models import dnnnet, cnnnet, lenet, alexnet, mtnet, googlenet, resnet
 
 import utils
-import cifar10_parse # 仅CIFAR-10自定义读取时使用
-
+import cifar10_parse  # 仅CIFAR-10自定义读取时使用
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--random_seed', type=int, default=1, help='Random seed')
+    parser.add_argument('--random_seed', type=int, default=1, help='Random seed，set 0 to activate deterministic mode')
     parser.add_argument('--dataset', type=str, default='handgesture', help='Training dataset')
-    parser.add_argument('--train_dir', type=str, default='../datasets/HandGesture/data/train', help='Root for train data')
-    parser.add_argument('--test_dir', type=str, default='../datasets/HandGesture/data/test', help='Root for test data')
+    parser.add_argument('--train_dir', type=str, default='../../datasets/HandGesture/data/train', help='Root for train data_raw')
+    parser.add_argument('--test_dir', type=str, default='../../datasets/HandGesture/data/test', help='Root for test data_raw')
     parser.add_argument('--epochs', type=int, default=5, help='Training epochs')
     parser.add_argument('--train_batch_size', type=int, default=10, help='Number of images in each mini-batch')
     parser.add_argument('--test_batch_size', type=int, default=5, help='Number of images in each mini-batch')
-    parser.add_argument('--network', type=str, default='CNN', help='The backbone of the network')
+    parser.add_argument('--network', type=str, default='cnnnet', help='The backbone of the network')
     parser.add_argument('--net_initialize', type=bool, default=False, help='Special method to initialize the parameter of network')
     parser.add_argument('--lr', type=float, default=0.01, help='Learning rate')
     parser.add_argument('--num_classes', type=int, default=10, help='Classes of prediction')
@@ -44,8 +43,14 @@ def parse_args():
 
 def train():
     # ===================================== 可选步骤 0/3 配置 =====================================
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # CPU或GPU
+    # 配置1，gpu/cpu
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # 模型和数据需要同时在CPU或GPU上，不能一个在CPU一个在GPU上
+
+    # 配置2，随机种子
     utils.set_seed(seed=opt.random_seed)  # 随机种子设置
+
+    # 配置3，tensorboard
+    tb_writer = SummaryWriter(log_dir='tb')  # 实例化一个tensorboard对象，log_dir定义文件保存的位置
 
     # ===================================== 核心步骤 1/5 数据 =====================================
     train_transform = transforms.Compose([
@@ -68,8 +73,8 @@ def train():
         test_loader = DataLoader(dataset=test_data, batch_size=opt.test_batch_size, shuffle=False, num_workers=0)
 
     elif opt.dataset == 'cifar10':
-        train_data = torchvision.datasets.CIFAR10(root='../datasets/CIFAR-10', train=True, download=False, transform=train_transform)
-        test_data = torchvision.datasets.CIFAR10(root='../datasets/CIFAR-10', train=False, download=False, transform=test_transform)
+        train_data = torchvision.datasets.CIFAR10(root='../../datasets/CIFAR-10', train=True, download=False, transform=train_transform)
+        test_data = torchvision.datasets.CIFAR10(root='../../datasets/CIFAR-10', train=False, download=False, transform=test_transform)
 
         # 自定义读取方法，可以是随机读一部分，也可以是读其中几个类
         train_data = cifar10_parse.custom_cifar10(train_data, 100)
@@ -86,26 +91,49 @@ def train():
         test_loader = DataLoader(dataset=test_data, batch_size=opt.test_batch_size, shuffle=False, num_workers=0)
 
     # ===================================== 核心步骤 2/5 模型 =====================================
+    # 打印训练设备信息
+    print('Training on', device)
+
     # 实例化网络并把网络放到合适的设备上
-    if opt.network == 'DNN':
+    if opt.network == 'dnnnet':
         print('Loading DNN_Net...')
-        net = DNNNet(classes=opt.num_classes).to(device)
+        # 对网络进行操作时是inplace，直接把网络放到指定device上就可以生效
+        net = dnnnet.DNNNet(classes=opt.num_classes).to(device)
 
-    elif opt.network == 'CNN':
+    elif opt.network == 'cnnnet':
         print('Loading CNN_Net...')
-        net = CNNNet(classes=opt.num_classes).to(device)
+        net = cnnnet.CNNNet(classes=opt.num_classes).to(device)
 
-    elif opt.network == 'LeNet':
+    elif opt.network == 'lenet':
         print('Loading Le_Net...')
-        net = LeNet(classes=opt.num_classes).to(device)
+        net = lenet.LeNet(classes=opt.num_classes).to(device)
 
-    elif opt.network == 'AlexNet':
+    elif opt.network == 'alexnet':
         print('Loading Alex_Net...')
-        net = AlexNet(classes=opt.num_classes).to(device)
+        net = alexnet.AlexNet(classes=opt.num_classes).to(device)
 
-    # 网络权重初始化，initialize_weights定义在网络里，加上可以缓解网络梯度消失和爆炸，一定程度上提升网络性能。不是必要操作
+    elif opt.network == 'mtnet':
+        print('Loading MT_Net...')
+        net = mtnet.MT_CNN(classes=opt.num_classes).to(device)
+
+    # 需要设置初始参数
+    elif opt.network == 'googlenet':
+        print('Loading Google_Net...')
+        net = googlenet.GoogLeNet(classes=opt.num_classes).to(device)
+
+    # 需要设置初始参数
+    elif opt.network == 'resnet':
+        print('Loading Res_Net...')
+        net = resnet.ResNeXt(classes=opt.num_classes).to(device)
+
+    # 网络权重初始化，initialize_weights定义在网络里，加上可以缓解网络梯度消失和爆炸，可能提升网络性能。不是必要操作
     if opt.net_initialize:
         net.initialize_weights()
+
+    # 将模型写入tensorboard
+    # 初始化一个和传入图片大小一样的全0矩阵，为了进行正向传播，需要根据正向传播的流程生成模型图
+    init_img = torch.zeros((1, 3, 32, 32), device=device)  # 32*32为原图片经过resize后的尺寸
+    tb_writer.add_graph(net, init_img)  # 通过add_graph传入初始模型和图片
 
     # ===================================== 核心步骤 3/5 损失函数 =====================================
     criterion = nn.CrossEntropyLoss()  # 选择损失函数
@@ -129,17 +157,25 @@ def train():
 
     count = 0  # 用来保存最优模型
 
-    for epoch in range(opt.epochs):
+    t_start = time.time()  # 记录训练开始时候的时间
+
+    for epoch in range(1, opt.epochs+1):  # 从1开始，不然epoch从0开始
 
         loss_train = 0.
         correct_train = 0.
         total_train = 0.
 
+        t1 = time.time()  # 记录每个epoch训练集开始的时间
+
         net.train()
+
         for i, data in enumerate(train_loader):
 
             # 前向传播，需要手写，即网络架构
             inputs, labels = data
+            # 对数据进行操作时不是inplace，需要再赋值才可以生效
+            inputs = inputs.to(device)  # 数据放到指定device上
+            labels = labels.to(device)  # 数据放到指定device上
             outputs = net(inputs)
 
             # 反向传播，交给框架
@@ -153,7 +189,7 @@ def train():
             # 统计分类情况
             _, predicted = torch.max(outputs.data, 1)
             total_train += labels.size(0)
-            correct_train += (predicted == labels).squeeze().sum().numpy()
+            correct_train += (predicted == labels).squeeze().sum().to("cpu").numpy()  # 需要放回cpu上才能使用np
 
             acc_train = correct_train / total_train  # 每个iter的acc
             loss_train += loss.item()  # 每个iter的loss
@@ -164,11 +200,18 @@ def train():
 
             loss_train = 0.
 
-        # 用于打印每个epoch信息
-        print("Train：Epoch[{:0>3}/{:0>3}]  Loss：{:.4f}  Acc：{:.2%}  Ratio：[{:.0f}/{:.0f}]".format(
-            epoch, opt.epochs, np.mean(train_loss_iter), np.mean(train_acc_iter), correct_train, total_train))
+        t2 = time.time()  # 记录每个epoch训练集结束的时间
 
-        # 每个epoch的结果
+        # 用于打印每个epoch信息
+        print('Train：Epoch[{:0>3}/{:0>3}]  Loss：{:.4f}  Acc：{:.2%}  Ratio：[{:.0f}/{:.0f}]  Time：{:.2f}s'.format(
+            epoch, opt.epochs, np.mean(train_loss_iter), np.mean(train_acc_iter), correct_train, total_train, t2-t1))
+
+        # 每个epoch的结果传入tensorboard保存
+        tb_writer.add_scalar('train loss', np.mean(train_loss_iter), epoch)
+        tb_writer.add_scalar('train acc', np.mean(train_acc_iter), epoch)
+        tb_writer.add_scalar('learning rate', optimizer.param_groups[0]["lr"], epoch)
+
+        # 每个epoch的结果传入列表保存
         train_loss_epoch.append(np.mean(train_loss_iter))
         train_acc_epoch.append(np.mean(train_acc_iter))
 
@@ -184,16 +227,21 @@ def train():
         correct_test = 0.
         total_test = 0.
 
+        t3 = time.time()  # 记录每个epoch验证集开始的时间
+
         net.eval()
         with torch.no_grad():
             for j, data in enumerate(test_loader):
                 inputs, labels = data
+                inputs = inputs.to(device)  # 数据放到指定device上
+                labels = labels.to(device)  # 数据放到指定device上
                 outputs = net(inputs)
                 loss = criterion(outputs, labels)
 
                 _, predicted = torch.max(outputs.data, 1)
                 total_test += labels.size(0)
-                correct_test += (predicted == labels).squeeze().sum().numpy()
+                # 注意这里的numpy()，numpy的数组类型无法放在GPU，只能放在CPU上进行操作，因此要先把数据放到CPU上再变成array
+                correct_test += (predicted == labels).squeeze().sum().to("cpu").numpy()
 
                 acc_test = correct_test / total_test  # 每个iter的acc
                 loss_test += loss.item()  # 每个iter的loss
@@ -204,12 +252,18 @@ def train():
 
                 loss_test = 0.
 
-            print("Valid：Epoch[{:0>3}/{:0>3}]  Loss：{:.4f}  Acc：{:.2%}  Ratio：[{:.0f}/{:.0f}]".format(
-                epoch, opt.epochs, np.mean(test_loss_iter), np.mean(test_acc_iter), correct_test, total_test))
+            t4 = time.time()  # 记录每个epoch验证集结束的时间
+
+            print('Valid：Epoch[{:0>3}/{:0>3}]  Loss：{:.4f}  Acc：{:.2%}  Ratio：[{:.0f}/{:.0f}]  Time：{:.2f}s'.format(
+                epoch, opt.epochs, np.mean(test_loss_iter), np.mean(test_acc_iter), correct_test, total_test, t4-t3))
 
             print('=' * 60)
 
-            # 每个epoch的结果
+            # 每个epoch的结果传入tensorboard保存
+            tb_writer.add_scalar('valid loss', np.mean(test_loss_iter), epoch)
+            tb_writer.add_scalar('valid acc', np.mean(test_acc_iter), epoch)
+
+            # 每个epoch的结果传入列表保存
             test_loss_epoch.append(np.mean(test_loss_iter))
             test_acc_epoch.append(np.mean(test_acc_iter))
 
@@ -223,7 +277,7 @@ def train():
 
         # 1.保存性能最好的模型
         # 先保存第一个epoch的模型和优化器
-        if epoch == 0:
+        if epoch == 1:
             if opt.save_model:
                 best_loss_test = test_loss_epoch[0]
                 best_acc_test = test_acc_epoch[0]
@@ -241,8 +295,8 @@ def train():
         # 是则删除掉前1个epoch保存的模型和优化器，并保存当前epoch的模型和优化器，不是则跳过
         else:
             if opt.save_model:
-                if test_acc_epoch[epoch] > best_acc_test:
-                    best_acc_test = test_acc_epoch[epoch]
+                if test_acc_epoch[epoch-1] > best_acc_test:
+                    best_acc_test = test_acc_epoch[epoch-1]
 
                     # 删掉多余的保存文件
                     if count > 0:
@@ -269,7 +323,7 @@ def train():
         count += 1
 
         # 2.保存训练结束时的模型和优化器
-        if epoch == opt.epochs - 1:
+        if epoch == opt.epochs:
             if opt.save_model:
                 snapLast = 'LastEpoch_%d_TestLoss_%.4f_TestAcc_%.2f' % (epoch, test_loss_epoch[-1], test_acc_epoch[-1])
 
@@ -285,6 +339,10 @@ def train():
         print('Model saved!')
 
     print('Training finished!')
+
+    t_end = time.time()  # 记录训练结束时候的时间
+
+    print('Total time used：{:.2f}s'.format(t_end - t_start))
 
     # ===================================== 可选步骤 2/3 保存指标 =====================================
     # 先判断文件夹存不存在，np.save找不到路径会报错
@@ -305,15 +363,15 @@ def train():
     # ===================================== 可选步骤 3/3 画图 =====================================
     # loss
     if opt.plot:
-        train_loss_x = range(len(train_loss_epoch))
+        train_loss_x = range(len(1, train_loss_epoch+1))
         train_loss_y = train_loss_epoch
-        train_acc_x = range(len(train_acc_epoch))
+        train_acc_x = range(len(1, train_acc_epoch+1))
         train_acc_y = train_acc_epoch
 
         # acc
-        valid_loss_x = range(len(test_loss_epoch))
+        valid_loss_x = range(len(1, test_loss_epoch+1))
         valid_loss_y = test_loss_epoch
-        valid_acc_x = range(len(test_acc_epoch))
+        valid_acc_x = range(len(1, test_acc_epoch+1))
         valid_acc_y = test_acc_epoch
 
         plt.subplot(1, 2, 1)  # 第一个对象
@@ -338,6 +396,3 @@ def train():
 if __name__ == '__main__':
     opt = parse_args()
     train()
-
-
-

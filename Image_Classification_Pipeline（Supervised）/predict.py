@@ -1,15 +1,11 @@
 import argparse
 import os
-import numpy as np
-import matplotlib.pyplot as plt
 import torch
-from torch import nn
-import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 from dataset import HandPredictDataset
-from model import DNNNet, CNNNet, LeNet, AlexNet
+from models.model import DNNNet, CNNNet, LeNet, AlexNet
 import utils
 
 def parse_args():
@@ -17,7 +13,7 @@ def parse_args():
     parser.add_argument('--random_seed', type=int, default=1, help='Random seed')
     parser.add_argument('--dataset', type=str, default='handgesture', help='Training dataset')
     parser.add_argument('--test_batch_size', type=int, default=10, help='Number of images in each mini-batch')
-    parser.add_argument('--test_dir', type=str, default='./inputs', help='Root for test data')
+    parser.add_argument('--test_dir', type=str, default='./inputs', help='Root for test data_raw')
     parser.add_argument('--path_state_dict', type=str, default='./checkpoints', help='Root for saved model')
     parser.add_argument('--network', type=str, default='CNN', help='The backbone of the network')
     parser.add_argument('--num_classes', type=int, default=10, help='Classes of prediction')
@@ -66,7 +62,7 @@ def train():
         if file.startswith(opt.dataset + '_' + opt.network + '_Model_' + 'BestEpoch'):
             model_file = file
 
-    # 加载训练好的模型
+    # 往实例化的网络中加载训练好的参数
     state_dict_load = torch.load(os.path.join(opt.path_state_dict, model_file), map_location=device)
     net.load_state_dict(state_dict_load)
 
@@ -76,6 +72,7 @@ def train():
     with torch.no_grad():
         for data in test_loader:
             inputs = data
+            inputs = inputs.to(device)  # 数据放到指定device上
             outputs = net(inputs)
             _, predicted = torch.max(outputs.data, 1)
 
