@@ -22,6 +22,7 @@ def set_seed(seed=1):
         torch.backends.cudnn.deterministic = False
         torch.backends.cudnn.benchmark = True
 
+
 # ===================================== Mixup数据增强 =====================================
 # pipeline中并没有应用Mixup,使用方法见：https://github.com/facebookresearch/mixup-cifar10
 def mixup_data(x, y, alpha=1.0, use_cuda=True):

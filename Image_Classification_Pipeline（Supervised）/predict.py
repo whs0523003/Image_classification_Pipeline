@@ -5,18 +5,18 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 from dataset import HandPredictDataset
-from models.model import DNNNet, CNNNet, LeNet, AlexNet
+from models import dnnnet, cnnnet, lenet, alexnet, mtnet, googlenet, resnet
 import utils
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--random_seed', type=int, default=1, help='Random seed')
-    parser.add_argument('--dataset', type=str, default='handgesture', help='Training dataset')
-    parser.add_argument('--test_batch_size', type=int, default=10, help='Number of images in each mini-batch')
-    parser.add_argument('--test_dir', type=str, default='./inputs', help='Root for test data_raw')
-    parser.add_argument('--path_state_dict', type=str, default='./checkpoints', help='Root for saved model')
-    parser.add_argument('--network', type=str, default='CNN', help='The backbone of the network')
-    parser.add_argument('--num_classes', type=int, default=10, help='Classes of prediction')
+    parser.add_argument('--random_seed', type=int, default=1, help='随机种子，设为0则开启deterministic mode')
+    parser.add_argument('--dataset', type=str, default='handgesture', help='数据集')
+    parser.add_argument('--test_dir', type=str, default='./inputs', help='测试数据文件夹')
+    parser.add_argument('--test_batch_size', type=int, default=10, help='测试集batch_size')
+    parser.add_argument('--path_state_dict', type=str, default='./checkpoints', help='保存模型的路径')
+    parser.add_argument('--network', type=str, default='CNN', help='主干网络')
+    parser.add_argument('--num_classes', type=int, default=10, help='预测类别数')
 
     opt = parser.parse_args()
     return opt
@@ -40,21 +40,36 @@ def train():
 
     # ===================================== 核心步骤 2/3 模型 =====================================
     # 实例化网络并把网络放到合适的设备上
-    if opt.network == 'DNN':
+    if opt.network == 'dnnnet':
         print('Loading DNN_Net...')
-        net = DNNNet(classes=opt.num_classes).to(device)
+        # 对网络进行操作时是inplace，直接把网络放到指定device上就可以生效
+        net = dnnnet.DNNNet(classes=opt.num_classes).to(device)
 
-    elif opt.network == 'CNN':
+    elif opt.network == 'cnnnet':
         print('Loading CNN_Net...')
-        net = CNNNet(classes=opt.num_classes).to(device)
+        net = cnnnet.CNNNet(classes=opt.num_classes).to(device)
 
-    elif opt.network == 'LeNet':
+    elif opt.network == 'lenet':
         print('Loading Le_Net...')
-        net = LeNet(classes=opt.num_classes).to(device)
+        net = lenet.LeNet(classes=opt.num_classes).to(device)
 
-    elif opt.network == 'AlexNet':
+    elif opt.network == 'alexnet':
         print('Loading Alex_Net...')
-        net = AlexNet(classes=opt.num_classes).to(device)
+        net = alexnet.AlexNet(classes=opt.num_classes).to(device)
+
+    elif opt.network == 'mtnet':
+        print('Loading MT_Net...')
+        net = mtnet.MT_CNN(classes=opt.num_classes).to(device)
+
+    # 需要设置初始参数
+    elif opt.network == 'googlenet':
+        print('Loading Google_Net...')
+        net = googlenet.GoogLeNet(classes=opt.num_classes).to(device)
+
+    # 需要设置初始参数
+    elif opt.network == 'resnet':
+        print('Loading Res_Net...')
+        net = resnet.ResNeXt(classes=opt.num_classes).to(device)
 
     # 找到保存的模型文件
     model_file = os.listdir(opt.path_state_dict)

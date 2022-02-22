@@ -18,7 +18,7 @@ predict：用训练好的模型进行预测
 
 utilis：一些辅助函数
 
-plot：根据metrics里保存的npy数据画图
+plot：根据metrics里保存的npy数据画图。train里也有相同部分，这里可以直接使用plot.py单独绘图
 
 datasets：保存一些数据集特殊的解析方法
 
