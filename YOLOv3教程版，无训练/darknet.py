@@ -8,7 +8,7 @@ import numpy as np
 from util import *
 
 def get_test_input():
-    img = cv2.imread("../YOLOv3教程版，无训练/dog-cycle-car.png")
+    img = cv2.imread("../YOLOv3_Object Detection_Pipeline/dog-cycle-car.png")
     img = cv2.resize(img, (416, 416))            # 把图片缩放至网络的输入尺寸416*416
     img_ = img[:, :, ::-1].transpose((2, 0, 1))  # opencv的BGR（h, w, c) -> pytorch的RGB(c, h, w)
     img_ = img_[np.newaxis, :, :, :] / 255.0     # 在第0位添加一个通道用于存放batch，并标准化
@@ -17,12 +17,21 @@ def get_test_input():
     return img_
 
 def parse_cfg(cfgfile):
+    """
+    输入: 配置文件路径
+    返回值: 一个列表对象，其中每一个元素为一个字典类型对应于一个要建立的神经网络模块（层）
+    思路：这里的思路是解析cfg，将每个块存储为词典。这些块的属性和值都以键值对的形式存储在词典中。
+         解析过程中，我们将这些词典（由代码中的变量block 表示）添加到列表blocks 中。我们的函数将返回该block。
+    """
+
+    # 加载文件并过滤掉文本中多余内容
     file = open(cfgfile, 'r')
     lines = file.read().split('\n')               # 读取每一行
     lines = [x for x in lines if len(x) > 0]      # 去掉空行
     lines = [x for x in lines if x[0] != '#']     # 去掉#开头的注释行
     lines = [x.rstrip().lstrip() for x in lines]  # 去掉左右两边的空格
 
+    # cfg文件中的每个块用[]括起来最后组成一个列表，一个block存储一个块的内容，即每个层用一个字典block存储。
     block = {}
     blocks = []
     
@@ -40,13 +49,25 @@ def parse_cfg(cfgfile):
 
     return blocks
 
+# 配置文件定义了6种不同type
+# 'net': 相当于超参数,网络全局配置的相关参数
+# {'convolutional', 'net', 'route', 'shortcut', 'upsample', 'yolo'}
+
+# cfg = parse_cfg("cfg/yolov3.cfg")
+# print(cfg)
 
 class EmptyLayer(nn.Module):
+    """
+    为shortcut layer/route layer准备，具体功能不在此实现，在Darknet类的forward函数中有体现
+    """
     def __init__(self):
         super(EmptyLayer, self).__init__()
         
 
 class DetectionLayer(nn.Module):
+    '''
+    yolo检测层的具体实现，在特征图上使用锚点预测目标区域和类别，功能函数在predict_transform中
+    '''
     def __init__(self, anchors):
         super(DetectionLayer, self).__init__()
         self.anchors = anchors
@@ -61,7 +82,11 @@ def create_modules(blocks):
     
     for index, x in enumerate(blocks[1:]):  # 迭代block[1:] 而不是blocks，因为blocks的第一个元素是一个net块，它不属于前向传播
         module = nn.Sequential()  # 每个块用nn.sequential()创建为了一个module，一个module有多个层
-
+    
+        # 检查block类型
+        # 为block创建模块
+        # 添加到module_list列表
+        
         # 如果该模块是卷积层
         if (x["type"] == "convolutional"):
             # 获取激活函数/批归一化/卷积层参数（通过字典的键获取值）
@@ -131,7 +156,9 @@ def create_modules(blocks):
             # 若end<0，则end还是end，输出index+end(而end<0)故index向后退end层的特征
             if end < 0:
                 filters = output_filters[index + start] + output_filters[index + end]
-
+            # 如果没有第二个参数，end=0，则对应下面的公式，
+            # 此时若start>0，由于start = start - index，再执行index + start输出的还是第start层的特征;
+            # 若start<0，则start还是start，输出index+start(而start<0)故index向后退start层的特征。
             else:
                 filters = output_filters[index + start]
     
@@ -185,6 +212,9 @@ class Darknet(nn.Module):
                 if (layers[0]) > 0:
                     layers[0] = layers[0] - i
 
+                # 只有一层时，从前面的if (layers[0]) > 0:语句中可知，
+                # 如果layer[0]>0，则输出的就是当前layer[0]这一层的特征,
+                # 如果layer[0]<0，输出就是从route层(第i层)向后退layer[0]层那一层得到的特征
                 if len(layers) == 1:
                     x = outputs[i + (layers[0])]
 
@@ -205,17 +235,29 @@ class Darknet(nn.Module):
                 anchors = self.module_list[i][0].anchors
                 # 从net_info(实际就是blocks[0]，即[net])中得到输入维度
                 inp_dim = int(self.net_info["height"])
-
                 # 得到类别数量
                 num_classes = int(module["classes"])
+
+                # 转换
                 x = x.data  # 这里得到的是预测的yolo层feature map
+                # 在util.py中的predict_transform()函数利用x(是传入yolo层的feature map)，得到每个格子所对应的anchor最终得到的目标
+                # 坐标与宽高，以及出现目标的得分与每种类别的得分
+                # 经过predict_transform变换后的x的维度是(batch_size, grid_size*grid_size*num_anchors, 5+类别数量)
                 x = predict_transform(x, inp_dim, anchors, num_classes, CUDA)
 
+                # 当没有收集器被初始化时。空的tensor无法与一个有数据的tensor进行concatenate操作
                 if not write:
                     detections = x  # detections的初始化在有预测值出来时才能进行
                     write = 1  # 用write=1标记，当后面的分数出来后，直接concatenate操作即可
-
+        
                 else:
+                    '''
+                    变换后x的维度是(batch_size, grid_size*grid_size*num_anchors, 5+类别数量)，这里是在维度1上进行concatenate，
+                    即按照anchor数量的维度进行连接，对应教程part3中的Bounding Box attributes图的行进行连接。yolov3中有3个yolo层，
+                    所以对于每个yolo层的输出先用predict_transform()变成每行为一个anchor对应的预测值的形式(不看batch_size这个维度，
+                    x剩下的维度可以看成一个二维tensor)，这样3个yolo层的预测值按照每个方框对应的行的维度进行连接。得到了这张图处所有anchor
+                    的预测值，后面的NMS等操作可以一次完成
+                    '''
                     detections = torch.cat((detections, x), 1)
         
             outputs[i] = x
@@ -226,6 +268,11 @@ class Darknet(nn.Module):
         # 打开权重文件
         fp = open(weightfile, "rb")
 
+        # 前5个值是表头信息
+        # 1. Major version number
+        # 2. Minor Version Number
+        # 3. Subversion number 
+        # 4,5. Images seen by the network (during training)
         header = np.fromfile(fp, dtype=np.int32, count=5)  # 这里读取前5个值的权重
         self.header = torch.from_numpy(header)
         self.seen = self.header[3]   
