@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
 
-# 这个网络相当大
+# Mean Teacher中提出的Net，不是人脸检测那个MtNet
 class MT_CNN(nn.Module):
     """
     CNN from Mean Teacher paper

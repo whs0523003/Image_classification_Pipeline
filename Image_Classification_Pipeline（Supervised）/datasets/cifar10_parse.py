@@ -10,11 +10,11 @@ def unpickle(file):
 
 
 def get_data():
-    data_batch1 = unpickle('../datasets/CIFAR-10/cifar-10-batches-py/data_batch_1')
-    data_batch2 = unpickle('../datasets/CIFAR-10/cifar-10-batches-py/data_batch_2')
-    data_batch3 = unpickle('../datasets/CIFAR-10/cifar-10-batches-py/data_batch_3')
-    data_batch4 = unpickle('../datasets/CIFAR-10/cifar-10-batches-py/data_batch_4')
-    data_batch5 = unpickle('../datasets/CIFAR-10/cifar-10-batches-py/data_batch_5')
+    data_batch1 = unpickle(r'D:\datasets\CIFAR-10\cifar-10-batches-py/data_batch_1')
+    data_batch2 = unpickle(r'D:\datasets\CIFAR-10\cifar-10-batches-py/data_batch_2')
+    data_batch3 = unpickle(r'D:\datasets\CIFAR-10\cifar-10-batches-py/data_batch_3')
+    data_batch4 = unpickle(r'D:\datasets\CIFAR-10\cifar-10-batches-py/data_batch_4')
+    data_batch5 = unpickle(r'D:\datasets\CIFAR-10\cifar-10-batches-py/data_batch_5')
 
     '''
     字符串前边的字母b,r,u的含义：

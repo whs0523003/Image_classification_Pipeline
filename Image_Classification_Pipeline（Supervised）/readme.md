@@ -1,52 +1,80 @@
-##文件夹介绍：
+#项目文件介绍：
 
-datasets：读取数据集
-- HandGesture的训练集和测试集需要分开读取，训练集是data/train/classes/img，测试集是data/test/img
-    
-HandGesture数据集需要
+###读取数据集
+训练集，验证集和测试集需要分开读取。
 
-model：模型
+目前支持：
+- CIFAR10
+- HandGesture，10分类手势数据集。
+- Imagenette，取自ImageNet的4分类数据集
+- Imagewoof，取自ImageNet的10分类动物数据集。
 
-train：训练模型
-- CPU和GPU的选择：
+###关于训练集，验证集，测试集
+一般机器学习/深度学习中模型训练时会将数据划分为训练集，验证集，测试集。
+
+严谨的操作应该是在训练集上训练数据，在验证集上测试acc,loss等并用于反向更新参数。最后训练出的模型在测试集上查看性能。
+
+一些情况中只有训练集和测试集，没有验证集。这样做相当于测试集的图像也参与训练抉择了，会导致数据在该测试集上过拟合，影响模型泛化能力。
+这种情况可以通过对训练集进行k折交叉验证并分层采样（根据标签中不同类别占比来进行拆分数据的，对样本不均衡问题更加友好）来分出一部分数据当验证集。
+最后的模型性能验证则在原本的测试集数据上进行。
+
+因此在数据充足的情况下，训练集，验证集，测试集这3个数据集的划分是必要的。
+
+--------------------------------
+
+###主干程序（完整框架必不可少的部分）：
+train.py：模型训练的主程序
+  - CPU和GPU的选择：
   - 数据和网络需要在同一设备上才可以
   - 将网络转到指定device上是inplace操作，而将数据转到指定device上不是，需要再进行赋值操作
   - correct_test += (predicted == labels).squeeze().sum().to("cpu").numpy()，GPU上无法进行numpy数组类型的操作，需要先把数据放到CPU上才可以转成数组类型
   
+models：文件夹，存放用到的各种主干网络模型
 
-predict：用训练好的模型进行预测
+predict_image.py：用训练好的模型对图片进行预测
 
-utilis：一些辅助函数
+predict_video.py：用训练好的模型对视频进行预测，可以是本地视频文件，也可以是前置或后置摄像头内容
 
-plot：根据metrics里保存的npy数据画图。train里也有相同部分，这里可以直接使用plot.py单独绘图
+inputs：文件夹，存放待预测数据，用于训练好的模型测试用
 
-datasets：保存一些数据集特殊的解析方法
+utils.py：一些辅助函数，包括一些可以提升模型性能的方法（Mixup，Attention等）
 
-metrics：保存性能指标
+--------------------------------
 
-checkpoints：保存模型
+###额外程序（辅助程序，用于保存，评估，测试，画图，多卡并行测试等）：
+plot.py：根据metrics里保存的npy数据画图。train里也有相同部分，这里可以直接使用plot.py单独绘图
 
-inputs：放入待预测数据
+metrics：文件夹，存放保存的性能指标
 
-camera：摄像头
+datasets：文件夹，存放保存特定数据集的解析方法
 
-注：需要把datasets文件夹和models文件夹设置为source文件夹
+checkpoints：文件夹，存放训练好的模型和优化器的参数和下载的模型的参数
+
+summary.py：用于查看指定网络的结构
+
+cal_mean_std.py：用于计算自定义数据集的mean和std
+
+camera.py：用于使用摄像头进行分类任务
+
+train_multiGPU.py：使用多卡并行训练模型
+
+注：datasets文件夹和models文件夹里的init函数使该文件夹变成了一个可调用的包
+
+--------------------------------
 
 ##图像分类Pipeline功能介绍：
-- 0.配置cuda
-- 1.读取数据，数据预处理
-- 2.模型
-- 3.损失函数
-- 4.优化器
-- 5.训练，每个epoch打印训练集和测试集上的loss和acc
-- 6.保存模型，每个epoch保存1次作为best，有更好的则替换，最终保存1个best和1个最后epoch的模型
+- 0.配置设备，可以使用cpu，gpu或者多张gpu并行
+- 1.读取官方数据集或自定义数据集
+- 2.数据预处理（标准化mean和std）
+- 3.从头开始训练模型 / 加载已经训练好的模型权重
+- 4.冻结权重以进行迁移学习
+- 5.损失函数
+- 6.优化器，多步学习率下降
+- 7.打印训练结果，每个epoch打印训练集和测试集上的acc, loss, lr, ratio, time信息
+- 8.保存模型参数，保存测试集准确率最高的epoch和最后1个epoch的模型参数
 - 7.保存指标，每个epoch的训练集和测试集上的loss和acc
-- 8.画图，每个epoch的训练集和测试集上的loss和acc
+- 8.画图，每个epoch的训练集和测试集上的loss和acc。支持matplotlib和tensorboard
 
-
-- -计时，每个epoch耗时和总耗时
-- -加载pytorch自带的训练好的模型
-- -迁移学习
 - -apex混合精度加速
 - -tensorboard绘图（模型搭建，精确率，损失，学习率，权重分布，预测图片信息）。打开方式：anaconda对应环境（common）进入events.tf.tfevents所在目录的上级目录后输入tensorboard --logdir./激活tensorboard，然后把端口（localhost:xxxx/）复制到网址打开
 
