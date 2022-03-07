@@ -42,10 +42,8 @@ def parse_args():
     parser.add_argument('--freeze_layers', type=bool, default=False, help='是否冻结网络参数')
     # ==================================== 数据集 ====================================
     parser.add_argument('--dataset', type=str, default='cifar10', help='数据集')
-    parser.add_argument('--train_dir', type=str, default=r'D:\datasets\CIFAR-10',
-                        help='训练数据文件夹路径')
-    parser.add_argument('--test_dir', type=str, default=r'D:\datasets\CIFAR-10',
-                        help='测试数据文件夹，如果自带验证集则填验证集文件夹路径')
+    parser.add_argument('--train_dir', type=str, default=r'D:\datasets\CIFAR-10', help='训练数据文件夹路径')
+    parser.add_argument('--test_dir', type=str, default=r'D:\datasets\CIFAR-10', help='测试数据文件夹，如果自带验证集则填验证集文件夹路径')
     # ==================================== 网络 ====================================
     parser.add_argument('--network', type=str, default='cnnnet', help='主干网络')
     parser.add_argument('--num_classes', type=int, default=6, help='预测类别数')
@@ -139,14 +137,15 @@ def train():
                                  shuffle=False, num_workers=opt.num_worker)
 
     elif opt.dataset == 'cifar10':
+        # 构建CIFAR-10实例
         train_data = torchvision.datasets.CIFAR10(root=opt.train_dir, train=True,
                                                   download=False, transform=train_transform)
         test_data = torchvision.datasets.CIFAR10(root=opt.test_dir, train=False,
                                                  download=False, transform=test_transform)
 
         # 自定义读取方法，可以是随机读一部分，也可以是读其中几个类
-        train_data = cifar10_parse.custom_cifar10(train_data, 1000)
-        test_data = cifar10_parse.custom_cifar10(test_data, 50)
+        train_data = cifar10_parse.custom_cifar10(train_data, 100)
+        test_data = cifar10_parse.custom_cifar10(test_data, 10)
 
         train_loader = DataLoader(dataset=train_data, batch_size=opt.train_batch_size,
                                   shuffle=True, num_workers=opt.num_worker)
